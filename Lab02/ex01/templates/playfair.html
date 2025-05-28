@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playfair Cipher</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding-top: 20px; }
+        .result-box { display: none; margin-top: 15px; }
+        .container { max-width: 600px; }
+        .form-label { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">Playfair Cipher</h1>
+        <div class="card">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="text" class="form-label">Text:</label>
+                    <textarea class="form-control" id="text" rows="4" placeholder="Enter text here (pairs of letters)..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="key" class="form-label">Key:</label>
+                    <input type="text" class="form-control" id="key" placeholder="Enter key (e.g., KEYWORD)...">
+                </div>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success" onclick="encrypt()">Encrypt</button>
+                    <button class="btn btn-danger" onclick="decrypt()">Decrypt</button>
+                </div>
+                <div id="result" class="result-box alert alert-info mt-3" role="alert">
+                    Result: <span id="result-text"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function createPlayfairMatrix(key) {
+            key = key.replace(/J/g, 'I').toUpperCase();
+            let keySet = new Set(key.split(''));
+            let alphabet = 'ABCDEFGHIKLMNOPQRSTUVWXYZ';
+            let matrix = [...key].filter(char => keySet.has(char));
+
+            for (let letter of alphabet) {
+                if (!keySet.has(letter) && matrix.length < 25) {
+                    matrix.push(letter);
+                }
+            }
+
+            return matrix.join('').match(/.{1,5}/g);
+        }
+
+        function findLetterCoords(matrix, letter) {
+            for (let row = 0; row < 5; row++) {
+                for (let col = 0; col < 5; col++) {
+                    if (matrix[row][col] === letter) {
+                        return [row, col];
+                    }
+                }
+            }
+            return [-1, -1];
+        }
+
+        function playfairEncrypt(text, key) {
+            text = text.toUpperCase().replace(/J/g, 'I').replace(/[^A-Z]/g, '');
+            let matrix = createPlayfairMatrix(key);
+            let result = '';
+
+            // Ghép cặp và thêm 'X' nếu cần
+            let pairedText = '';
+            for (let i = 0; i < text.length; i += 2) {
+                let pair = text[i];
+                if (i + 1 < text.length) pair += text[i + 1];
+                else pair += 'X';
+                if (pair[0] === pair[1]) pair = pair[0] + 'X';
+                pairedText += pair;
+            }
+
+            for (let i = 0; i < pairedText.length; i += 2) {
+                let [r1, c1] = findLetterCoords(matrix, pairedText[i]);
+                let [r2, c2] = findLetterCoords(matrix, pairedText[i + 1]);
+                if (r1 === -1 || r2 === -1) continue;
+
+                if (r1 === r2) {
+                    result += matrix[r1][(c1 + 1) % 5] + matrix[r2][(c2 + 1) % 5];
+                } else if (c1 === c2) {
+                    result += matrix[(r1 + 1) % 5][c1] + matrix[(r2 + 1) % 5][c2];
+                } else {
+                    result += matrix[r1][c2] + matrix[r2][c1];
+                }
+            }
+            return result;
+        }
+
+        function playfairDecrypt(text, key) {
+            text = text.toUpperCase().replace(/J/g, 'I');
+            let matrix = createPlayfairMatrix(key);
+            let decryptedText = '';
+
+            for (let i = 0; i < text.length; i += 2) {
+                let pair = text.slice(i, i + 2); // Sửa từ text[i:i+2] thành text.slice(i, i + 2)
+                if (pair.length < 2) continue;
+
+                let [row1, col1] = findLetterCoords(matrix, pair[0]);
+                let [row2, col2] = findLetterCoords(matrix, pair[1]);
+
+                if (row1 === row2) {
+                    decryptedText += matrix[row1][(col1 - 1 + 5) % 5];
+                    decryptedText += matrix[row2][(col2 - 1 + 5) % 5];
+                } else if (col1 === col2) {
+                    decryptedText += matrix[(row1 - 1 + 5) % 5][col1];
+                    decryptedText += matrix[(row2 - 1 + 5) % 5][col2];
+                } else {
+                    decryptedText += matrix[row1][col2];
+                    decryptedText += matrix[row2][col1];
+                }
+            }
+
+            // Loại bỏ 'X' được thêm khi mã hóa
+            let result = '';
+            let i = 0;
+            while (i < decryptedText.length) {
+                if (i < decryptedText.length - 2 && decryptedText[i + 1] === 'X') {
+                    result += decryptedText[i];
+                    i += 2;
+                } else {
+                    result += decryptedText[i];
+                    i += 1;
+                }
+            }
+            if (decryptedText.length % 2 === 0 || decryptedText[decryptedText.length - 1] !== 'X') {
+                result += decryptedText[decryptedText.length - 1];
+            }
+            return result;
+        }
+
+        function processCipher(method) {
+            const text = document.getElementById('text').value;
+            const key = document.getElementById('key').value;
+            if (!text || !key) {
+                alert('Please enter both text and a valid key!');
+                return;
+            }
+
+            let result;
+            if (method === 'encrypt') {
+                result = playfairEncrypt(text, key);
+            } else if (method === 'decrypt') {
+                result = playfairDecrypt(text, key);
+            }
+
+            document.getElementById('result-text').textContent = result;
+            document.getElementById('result').style.display = 'block';
+        }
+
+        function encrypt() {
+            processCipher('encrypt');
+        }
+
+        function decrypt() {
+            processCipher('decrypt');
+        }
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
